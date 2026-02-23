@@ -4,13 +4,14 @@
 import sys
 import os
 import re
+import time     # 新增：用于时间计算，显示导入时间进度和预计总时间
 import pandas as pd
 import PyQt6.QtCore
 from PyQt6.QtWidgets import (QWidget, QLabel, QPushButton, QVBoxLayout,
                              QListWidget, QListWidgetItem, QCheckBox,
                              QMessageBox, QApplication, QHBoxLayout, 
                              QRadioButton, QButtonGroup, QLineEdit, QGroupBox,
-                             QFormLayout)
+                             QFormLayout, QTextEdit, QAbstractItemView) # 添加了 QTextEdit, QAbstractItemView
 from PyQt6.QtCore import Qt
 
 from PyQt6.QtWidgets import QAbstractItemView   # 如果使用 PyQt6
@@ -88,6 +89,30 @@ class Form2(QWidget):
         self.update_db_param_visibility()
         
         vbox.addWidget(self.btn_import)
+
+        # ----- 新增：进度显示区域 -----
+        self.total_label = QLabel("总文件数: 0")
+        self.current_index_label = QLabel("正在导入第 0 个文件")
+        # 新增：时间显示标签
+        self.time_label = QLabel("已用时间: 00:00:00 | 预计总时间: 计算中...")
+
+
+        self.current_file_label = QLabel("当前文件: ")
+        self.status_label = QLabel("状态: 等待开始")
+        self.error_textedit = QTextEdit()
+        self.error_textedit.setPlaceholderText("失败详情将显示在这里，您可以复制此信息")
+        self.error_textedit.setReadOnly(False)  # 可编辑以便复制
+        self.error_textedit.setMaximumHeight(80)  # 限制高度
+    
+        # 将新增控件加入布局
+        vbox.addWidget(self.total_label)
+        vbox.addWidget(self.current_index_label)
+        vbox.addWidget(self.time_label)          # 新增
+        vbox.addWidget(self.current_file_label)
+        vbox.addWidget(self.status_label)
+        vbox.addWidget(QLabel("失败详情（可复制）:"))
+        vbox.addWidget(self.error_textedit)
+
         self.setLayout(vbox)
     
     def setup_db_params(self):
@@ -110,9 +135,9 @@ class Form2(QWidget):
         
         # MS SQL Server参数
         mssql_layout = QFormLayout()
-        self.mssql_server = QLineEdit("PC\SQLEXPRESS_BORIS")
+        self.mssql_server = QLineEdit(r"PC\SQLEXPRESS_BORIS")   # 改为原始字符串: "PC\SQLEXPRESS_BORIS" 的前面加上字母r
         self.mssql_database_name = QLineEdit("stock_db")
-        self.mssql_username = QLineEdit("PC\邵宇明")
+        self.mssql_username = QLineEdit(r"PC\邵宇明")            # 同样处理：改为原始字符串: "PC\邵宇明" 的前面加上字母r
         self.mssql_password = QLineEdit()
         self.mssql_password.setEchoMode(QLineEdit.EchoMode.Password)
         
@@ -316,9 +341,32 @@ class Form2(QWidget):
             cursor.execute(merge_sql, values)
         conn.commit()
     
+    def format_time(self, seconds):
+        """将秒数格式化为 HH:MM:SS（小时可超过24）"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+    def update_time_display(self, processed_count):
+        """根据已处理文件数更新时间标签"""
+        elapsed = time.time() - self.start_time
+        elapsed_str = self.format_time(elapsed)
+        if processed_count > 0:
+            avg_time = elapsed / processed_count
+            total_estimate = avg_time * self.total_files
+            total_estimate_str = self.format_time(total_estimate)
+            self.time_label.setText(f"已用时间: {elapsed_str} | 预计总时间: {total_estimate_str}")
+        else:
+            self.time_label.setText(f"已用时间: {elapsed_str} | 预计总时间: 计算中...")
+
+
+
     def import_to_db(self):
         """执行导入数据库操作"""
         selected_files = self.get_selected_files()
+
+
         if not selected_files:
             QMessageBox.warning(self, "警告", "请至少选择一个文件")
             return
@@ -344,10 +392,28 @@ class Form2(QWidget):
             QMessageBox.critical(self, "数据库连接失败", str(e))
             return
         
+        # 记录开始时间和总文件数
+        self.start_time = time.time()
+        self.total_files = len(selected_files)      # 保存到实例变量
+        self.total_label.setText(f"总文件数: {self.total_files}")
+
+
+
         success_count = 0
         fail_count = 0
-        for file_path in selected_files:
+
+
+
+        for idx, file_path in enumerate(selected_files, start=1):
+            # 更新当前进度
+            self.current_index_label.setText(f"正在导入第 {idx} 个文件")
             filename = os.path.basename(file_path)
+            self.current_file_label.setText(f"当前文件: {filename}")
+            self.status_label.setText("状态: 处理中...")
+            self.error_textedit.clear()
+            # 刷新界面
+            QApplication.processEvents()
+            
             # 根据文件名判断是日数据还是分钟数据
             if "_day" in filename:
                 data_type = "day"
@@ -355,24 +421,35 @@ class Form2(QWidget):
                 data_type = "min"
             else:
                 print(f"跳过未知类型文件: {filename}")
+                self.status_label.setText("状态: 跳过（未知类型）")
+                QApplication.processEvents()
+                fail_count += 1
+                # 即使跳过，也更新时间显示（已处理数增加）
+                self.update_time_display(idx)
                 continue
             
-            # 提取股票代码（前6位数字，假设文件名格式如 "300502.SZ_day.csv"）
-            # 注意：可能包含.SZ等后缀，我们需要提取前6位数字。正则表达式提取数字
-            import re
+            # 提取股票代码（前6位数字）
             match = re.search(r'(\d{6})', filename)
             if not match:
                 print(f"无法从文件名提取股票代码: {filename}")
+                self.status_label.setText("状态: 跳过（无法提取代码）")
+                QApplication.processEvents()
                 fail_count += 1
+                self.update_time_display(idx)
+
+
                 continue
             stock_code = match.group(1)
             
             # 读取csv文件到DataFrame
-            import pandas as pd
             try:
                 df = pd.read_csv(file_path, encoding='utf-8-sig')
             except Exception as e:
-                print(f"读取CSV失败 {file_path}: {e}")
+                error_msg = f"读取CSV失败: {e}"
+                print(f"{error_msg} {file_path}")
+                self.status_label.setText("状态: 失败")
+                self.error_textedit.setPlainText(error_msg)
+                QApplication.processEvents()
                 fail_count += 1
                 continue
             
@@ -382,11 +459,20 @@ class Form2(QWidget):
                     import_func_day(conn, stock_code, df)
                 else:
                     import_func_min(conn, stock_code, df)
+                self.status_label.setText("状态: 成功")
+                self.error_textedit.clear()
                 success_count += 1
             except Exception as e:
-                print(f"导入数据失败 {file_path}: {e}")
+                error_msg = f"导入数据失败: {e}"
+                print(f"{error_msg} {file_path}")
+                self.status_label.setText("状态: 失败")
+                self.error_textedit.setPlainText(error_msg)
+                QApplication.processEvents()
                 fail_count += 1
-        
+            
+            # 处理完成后统一更新时间显示
+            self.update_time_display(idx)
+
         conn.close()
         QMessageBox.information(self, "完成", f"导入完成！成功：{success_count}，失败：{fail_count}")
         # 可选刷新列表或关闭窗口
