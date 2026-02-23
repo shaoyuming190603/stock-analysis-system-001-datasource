@@ -4,7 +4,7 @@
 
 import sys
 from PyQt6.QtWidgets import QApplication
-from gui_form1 import Form1   # 注意：该模块也需要适配 PyQt6
+from Data01_gui_form1 import Form1   # 注意：该模块也需要适配 PyQt6
 
 def main():
     app = QApplication(sys.argv)

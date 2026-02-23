@@ -20,7 +20,7 @@ def clear_csv_files(directory):
         if filename.lower().endswith('.csv'):
             file_path = os.path.join(directory, filename)
             ### os.remove(file_path)
-            print(f"file_utils 未删除旧CSV文件: {file_path}")
+            print(f"Data01_file_utils 未删除旧CSV文件: {file_path}")
 
 def get_csv_files(directory):
 #     """获取指定目录下所有csv文件路径列表"""

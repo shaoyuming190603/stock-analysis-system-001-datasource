@@ -15,9 +15,9 @@ from PyQt6.QtWidgets import (QWidget, QLabel, QPushButton, QFileDialog,
 from PyQt6.QtCore import QThread, pyqtSignal
 
 # 导入自定义模块
-import config
-import file_utils
-import tushare_utils
+import Data01_config
+import Data01_file_utils
+import Data01_tushare_utils
 
 
 class DownloadWorker(QThread):
@@ -38,8 +38,8 @@ class DownloadWorker(QThread):
     def run(self):
         start_time = time.time()
         # 初始化tushare
-        token = config.TUSHARE_TOKEN
-        self.pro = tushare_utils.init_tushare(token)
+        token = Data01_config.TUSHARE_TOKEN
+        self.pro = Data01_tushare_utils.init_tushare(token)
 
         total = len(self.stock_list)
         success_count = 0
@@ -58,22 +58,22 @@ class DownloadWorker(QThread):
             # 确定文件名
             if data_type == '日数据':
                 suffix = 'day'
-                log_file = config.LOG_DAY_FILE
+                log_file = Data01_config.LOG_DAY_FILE
             else:  # 分钟数据
                 suffix = 'min'
-                log_file = config.LOG_MIN_FILE
+                log_file = Data01_config.LOG_MIN_FILE
 
             filename = f"{stock_code}_{suffix}.csv"
             filepath = os.path.join(self.save_dir, filename)
 
             # 下载数据
             self.log.emit(f"正在下载 ({current}/{total}): {stock_code}")
-            df = tushare_utils.download_stock_data(self.pro, stock_code,
+            df = Data01_tushare_utils.download_stock_data(self.pro, stock_code,
                                                     start_date, end_date, data_type)
             if df is not None:
-                tushare_utils.save_data_to_csv(df, filepath)
+                Data01_tushare_utils.save_data_to_csv(df, filepath)
                 # 更新日志文件
-                file_utils.update_log_file(log_file, stock_code,
+                Data01_file_utils.update_log_file(log_file, stock_code,
                                            start_date, end_date, data_type)
                 success_count += 1
             else:
@@ -93,7 +93,7 @@ class Form1(QWidget):
     def __init__(self):
         super().__init__()
         self.stock_list_df = None  # 存储加载的股票清单
-        self.save_dir = config.STOCK_DATA_DIR
+        self.save_dir = Data01_config.STOCK_DATA_DIR
         self.init_ui()
         self.check_and_prepare_directory()
 
@@ -131,8 +131,8 @@ class Form1(QWidget):
 
     def check_and_prepare_directory(self):
         """检查并准备下载目录：创建目录，删除历史csv文件"""
-        file_utils.ensure_dir(self.save_dir)
-        file_utils.clear_csv_files(self.save_dir)
+        Data01_file_utils.ensure_dir(self.save_dir)
+        Data01_file_utils.clear_csv_files(self.save_dir)
         self.label_status.setText("已清理历史CSV文件")
 
     def select_stock_list(self):
@@ -149,7 +149,7 @@ class Form1(QWidget):
 
         try:
             # 调用 file_utils 读取文件，返回带标准列名的 DataFrame
-            df = file_utils.read_stock_list(file_path)
+            df = Data01_file_utils.read_stock_list(file_path)
             self.stock_list_df = df
             count = len(df)
             self.label_count.setText(f"股票数量: {count}")
@@ -165,7 +165,7 @@ class Form1(QWidget):
             return
 
         # 再次确认目录已清理（可能用户手动添加了文件）
-        file_utils.clear_csv_files(self.save_dir)
+        Data01_file_utils.clear_csv_files(self.save_dir)
 
         self.btn_download.setEnabled(True)
         self.btn_select.setEnabled(True)
@@ -208,7 +208,7 @@ class Form1(QWidget):
     def open_form2(self):
         """打开Form2（数据更新到SQL）"""
         # 延迟导入，避免循环依赖
-        from gui_form2 import Form2
+        from Data01_gui_form2 import Form2
         self.form2 = Form2()
         self.form2.show()
 

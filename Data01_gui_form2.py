@@ -13,9 +13,9 @@ from PyQt6.QtCore import Qt
 
 from PyQt6.QtWidgets import QAbstractItemView   # 如果使用 PyQt6
 
-import config
-import file_utils
-import db_utils
+import Data01_config
+import Data01_file_utils
+import Data01_db_utils
 
 class Form2(QWidget):
     def __init__(self):
@@ -57,7 +57,7 @@ class Form2(QWidget):
     
     def load_csv_files(self):
         """加载下载目录中的所有csv文件，并显示在列表中"""
-        self.csv_files = file_utils.get_csv_files(config.STOCK_DATA_DIR)
+        self.csv_files = Data01_file_utils.get_csv_files(Data01_config.STOCK_DATA_DIR)
         self.list_widget.clear()
         self.checkboxes.clear()
         for file_path in self.csv_files:
@@ -97,7 +97,7 @@ class Form2(QWidget):
         
         # 初始化数据库连接
         try:
-            conn = db_utils.get_db_connection()
+            conn = Data01_db_utils.get_db_connection()
         except Exception as e:
             QMessageBox.critical(self, "数据库连接失败", str(e))
             return
@@ -137,9 +137,9 @@ class Form2(QWidget):
             # 调用db_utils处理
             try:
                 if data_type == "day":
-                    db_utils.import_day_data(conn, stock_code, df)
+                    Data01_db_utils.import_day_data(conn, stock_code, df)
                 else:
-                    db_utils.import_min_data(conn, stock_code, df)
+                    Data01_db_utils.import_min_data(conn, stock_code, df)
                 success_count += 1
             except Exception as e:
                 print(f"导入数据失败 {file_path}: {e}")

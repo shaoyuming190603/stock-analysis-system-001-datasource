@@ -5,34 +5,34 @@
 import sqlite3
 import pandas as pd
 from datetime import datetime
-import config
+import Data01_config
 
 def get_db_connection():
 #     """根据配置获取数据库连接"""
-    if config.DB_TYPE == "sqlite":
-        conn = sqlite3.connect(config.SQLITE_DB_PATH)
+    if Data01_config.DB_TYPE == "sqlite":
+        conn = sqlite3.connect(Data01_config.SQLITE_DB_PATH)
         # 启用外键支持（可选）
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
-    elif config.DB_TYPE == "mysql":
+    elif Data01_config.DB_TYPE == "mysql":
         # 需要安装pymysql或mysql-connector-python
         import pymysql
         conn = pymysql.connect(
-            host=config.MYSQL_CONFIG['host'],
-            port=config.MYSQL_CONFIG['port'],
-            user=config.MYSQL_CONFIG['user'],
-            password=config.MYSQL_CONFIG['password'],
-            database=config.MYSQL_CONFIG['database'],
+            host=Data01_config.MYSQL_CONFIG['host'],
+            port=Data01_config.MYSQL_CONFIG['port'],
+            user=Data01_config.MYSQL_CONFIG['user'],
+            password=Data01_config.MYSQL_CONFIG['password'],
+            database=Data01_config.MYSQL_CONFIG['database'],
             charset='utf8mb4'
         )
         return conn
     else:
-        raise ValueError(f"不支持的数据库类型: {config.DB_TYPE}")
+        raise ValueError(f"不支持的数据库类型: {Data01_config.DB_TYPE}")
 
 def create_day_table_if_not_exists(conn, stock_code):
 #     """创建日线数据表（如果不存在），主键为日期"""
     table_name = f"stock_{stock_code}_day"
-    if config.DB_TYPE == "sqlite":
+    if Data01_config.DB_TYPE == "sqlite":
         create_sql = f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
             trade_date TEXT PRIMARY KEY,
@@ -73,7 +73,7 @@ def create_min_table_if_not_exists(conn, stock_code):
     table_name = f"stock_{stock_code}_min"
     # 分钟数据表结构假设包含 trade_time 或类似列
     # 根据tushare分钟数据接口调整列名
-    if config.DB_TYPE == "sqlite":
+    if Data01_config.DB_TYPE == "sqlite":
         create_sql = f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
             trade_time TEXT PRIMARY KEY,
@@ -141,7 +141,7 @@ def import_day_data(conn, stock_code, df):
         placeholders = ','.join(['?' for _ in cols_present])
         col_names = ','.join(cols_present)
         # 生成替换语句
-        if config.DB_TYPE == "sqlite":
+        if Data01_config.DB_TYPE == "sqlite":
             sql = f"INSERT OR REPLACE INTO {table_name} ({col_names}) VALUES ({placeholders})"
         else:  # mysql使用 REPLACE INTO
             sql = f"REPLACE INTO {table_name} ({col_names}) VALUES ({placeholders})"
@@ -166,7 +166,7 @@ def import_min_data(conn, stock_code, df):
     col_names = ','.join(cols_present)
     
     for _, row in df.iterrows():
-        if config.DB_TYPE == "sqlite":
+        if Data01_config.DB_TYPE == "sqlite":
             sql = f"INSERT OR REPLACE INTO {table_name} ({col_names}) VALUES ({placeholders})"
         else:
             sql = f"REPLACE INTO {table_name} ({col_names}) VALUES ({placeholders})"
